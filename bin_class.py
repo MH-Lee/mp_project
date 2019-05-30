@@ -88,40 +88,30 @@ class BinPacking:
                 morning_available_room = [key for key, value in oper_mor_time_sum.items() if value <= 185]
                 afternoon_available_room = [key for key, value in oper_an_time_sum.items() if value <= 200]
                 if self.portfolio_effect == True:
-                    std_gmean = dict((key, round(gmean(list(value['morning']+value['afternoon'])),2) if np.isnan(round(gmean(list(value['morning']+value['afternoon'])),2)) == False else 0) for key, value in oper_std.items())
-                    available_room = [key for key, value in oper_time_sum.items() if (value + int(std_gmean[key]) + allocate_oper_time <= 605 and key in afternoon_available_room)]
+                    # std_gmean = dict((key, round(gmean(list(value['morning']+value['afternoon'])),2) if np.isnan(round(gmean(list(value['morning']+value['afternoon'])),2)) == False else 0) for key, value in self.oper_std.items())
+                    std_gmean = self.planned_stack = dict((key, np.sqrt(np.dot(np.square(list(value['morning']+value['afternoon'])), [round(i/sum(list(value['morning']+value['afternoon'])),2) for i in list(value['morning']+value['afternoon'])]))) for key, value in self.oper_std.items())
+                    available_room = [key for key, value in oper_time_sum.items() if ((value + int(std_gmean[key]) + allocate_oper_time <= 605 and key in afternoon_available_room) or oper_mor_time_sum[key] == 0)]
                 else:
-                    available_room = [key for key, value in oper_time_sum.items() if (value + allocate_oper_time <= 605 and key in afternoon_available_room)]
+                    available_room = [key for key, value in oper_time_sum.items() if ((value + allocate_oper_time <= 605 and key in afternoon_available_room) or oper_mor_time_sum[key] == 0)]
+                print("오전가능 수수실:", morning_available_room)
                 print("오후가능 수술실:", afternoon_available_room)
                 print("전체가능 수술실:", available_room)
-                if available_room[0] not in morning_available_room or resid_inst['오후수술'] == 1:
+                # if available_room[0] not in morning_available_room or resid_inst['오후수술'] == 1:
+                #     self.allocation_time(available_room, resid_inst, 0, 'afternoon')
+                if resid_inst['오전수술'] == 1:
+                    self.allocation_time(morning_available_room, resid_inst, 0, 'morning')
+                elif (available_room[0] not in morning_available_room) or resid_inst['오후수술'] == 1:
                     self.allocation_time(available_room, resid_inst, 0, 'afternoon')
                 else:
                     self.allocation_time(available_room, resid_inst, 0,'morning')
+            # self.planned_stack = dict((key, round(gmean(list(value['morning']+value['afternoon'])),2) if np.isnan(round(gmean(list(value['morning']+value['afternoon'])),2)) == False else 0) for key, value in self.oper_std.items())
+            self.planned_stack = dict((key, np.sqrt(np.dot(np.square(list(value['morning']+value['afternoon'])), [round(i/sum(list(value['morning']+value['afternoon'])),2) for i in list(value['morning']+value['afternoon'])]))) for key, value in self.oper_std.items())
             self.one_day.drop(residual_operation_index, inplace=True)
             print(self.one_day.shape)
 
     def allocate_with_condition(self):
         self.oper_fit(self.fo_pref_index, func="first-pefer")
+        self.oper_fit(self.fo_index, func="first")
         self.oper_fit(self.df_prefer_index, func="prefer")
         self.oper_fit(self.fo_index, func="residual")
-        return self.oper_allocation, self.oper_time, self.oper_real_time, self.oper_std
-
-
-bin = BinPacking('11/01/2018', portfolio_effect=True)
-
-oper_allocation, oper_time, oper_real_time, oper_std = bin.allocate_with_condition()
-oper_time_sum = {key:sum([sum(value['morning']) ,sum(value['afternoon'])])  for key, value in oper_time.items()}
-oper_rtime_sum = {key:sum([sum(value['morning']) ,sum(value['afternoon'])])  for key, value in oper_real_time.items()}
-oper_time_count = {key:sum([len(value['morning']) ,len(value['afternoon'])])  for key, value in oper_time.items()}
-sum(oper_time_count.values())
-
-# std_gmean = dict((key, round(gmean(list(value['morning']+value['afternoon'])),2) if np.isnan(round(gmean(list(value['morning']+value['afternoon'])),2)) == False else 0) for key, value in oper_std.items())
-used_bin = len([key for key, val in oper_time_count.items() if val != 0])
-
-oper_time_sum
-oper_rtime_sum
-oper_time
-oper_allocation
-oper_time
-oper_real_time
+        return self.oper_allocation, self.oper_time, self.oper_real_time, self.oper_std, self.planned_stack
